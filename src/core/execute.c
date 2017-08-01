@@ -1578,7 +1578,7 @@ static int exec_child(
         const char *username = NULL, *home = NULL, *shell = NULL, *wd;
         dev_t journal_stream_dev = 0;
         ino_t journal_stream_ino = 0;
-        bool needs_mount_namespace;
+        bool needs_mount_namespace, needs_selinux = false, needs_apparmor = false;
         uid_t uid = UID_INVALID;
         gid_t gid = GID_INVALID;
         int i, r;
@@ -1905,6 +1905,14 @@ static int exec_child(
 #endif
         }
 
+#ifdef HAVE_SELINUX
+        needs_selinux = mac_selinux_use();
+#endif
+
+#ifdef HAVE_APPARMOR
+        needs_apparmor = context->apparmor_profile && mac_apparmor_use();
+#endif
+
         if (context->private_network && runtime && runtime->netns_storage_socket[0] >= 0) {
                 r = setup_netns(runtime->netns_storage_socket);
                 if (r < 0) {
@@ -2137,7 +2145,7 @@ static int exec_child(
 #endif
 
 #ifdef HAVE_SELINUX
-                if (mac_selinux_use()) {
+                if (needs_selinux) {
                         char *exec_context = mac_selinux_context_net ?: context->selinux_context;
 
                         if (exec_context) {
@@ -2151,7 +2159,7 @@ static int exec_child(
 #endif
 
 #ifdef HAVE_APPARMOR
-                if (context->apparmor_profile && mac_apparmor_use()) {
+                if (needs_apparmor) {
                         r = aa_change_onexec(context->apparmor_profile);
                         if (r < 0 && !context->apparmor_profile_ignore) {
                                 *exit_status = EXIT_APPARMOR_PROFILE;
